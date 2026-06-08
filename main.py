@@ -14,12 +14,8 @@ PDF_FILES = {
 }
 
 # --- 2. PARSAREA PDF-ULUI ---
+# --- 2. PARSAREA PDF-ULUI ---
 def parse_pdf_quiz(file_path):
-    """
-    Citește PDF-ul și extrage întrebările.
-    Se bazează pe faptul că opțiunile încep cu a), b), c) sau @a).
-    Tot textul de dinaintea opțiunilor devine corpul întrebării.
-    """
     if not os.path.exists(file_path):
         return []
 
@@ -39,26 +35,39 @@ def parse_pdf_quiz(file_path):
     current_options = []
     correct_indices = []
     
-    # Caută linii care încep cu a), @a), B), @c) etc.
+    # Folosim o stare pentru a ști dacă citim enunțul sau opțiunile
+    state = "question" 
+    
     opt_pattern = re.compile(r'^(@?)([a-zA-Z])\)\s*(.+)')
+
+    # Funcție ajutătoare pentru a recunoaște dacă un text pare a fi o întrebare nouă
+    def looks_like_new_question(line_text):
+        # Curățăm semnele de punctuație de la început (ex: ghilimele)
+        clean_text = re.sub(r'^[^a-zA-Z0-9ĂÎÂȘȚăîâșț]+', '', line_text)
+        if not clean_text:
+            return False
+        first_char = clean_text[0]
+        # E întrebare nouă dacă începe cu literă Mare sau cu un număr
+        return first_char.isupper() or first_char.isdigit()
 
     for line in lines:
         line = line.strip()
         if not line:
             continue
             
-        # Ignorăm titlurile de pagini dacă e cazul (ex: "Capitolul 5: Piaţa financiară")
-        if line.lower().startswith("capitolul"):
+        # Ignorăm titlurile de pagini
+        if line.lower().startswith("capitolul") or line.lower().startswith("grile macro"):
             continue
 
         opt_match = opt_pattern.match(line)
         
         if opt_match:
-            # Am găsit o opțiune de răspuns
+            # Am dat de o opțiune a), b), c) -> schimbăm starea
+            state = "options"
+            
             is_correct = bool(opt_match.group(1) == '@')
             opt_text = opt_match.group(3)
             
-            # Verificăm dacă '@' a rămas ascuns în interiorul textului (din erori de formatare)
             if '@' in opt_text:
                 is_correct = True
                 opt_text = opt_text.replace('@', '').strip()
@@ -67,23 +76,29 @@ def parse_pdf_quiz(file_path):
             if is_correct:
                 correct_indices.append(len(current_options) - 1)
         else:
-            # Nu este o opțiune. 
-            # Dacă aveam deja opțiuni salvate, înseamnă că am dat de o ÎNTREBARE NOUĂ.
-            if current_options:
-                questions.append({
-                    "text": " ".join(current_q_text).strip(),
-                    "options": current_options,
-                    "correct_indices": correct_indices
-                })
-                # Resetăm variabilele pentru noua întrebare
-                current_q_text = [line]
-                current_options = []
-                correct_indices = []
+            # Nu este o opțiune (nu are a, b, c în față)
+            if state == "options":
+                # Suntem la opțiuni, dar linia nu are literă. E continuare sau întrebare nouă?
+                if looks_like_new_question(line):
+                    # Salvează întrebarea veche și începe una nouă
+                    questions.append({
+                        "text": " ".join(current_q_text).strip(),
+                        "options": current_options,
+                        "correct_indices": correct_indices
+                    })
+                    current_q_text = [line]
+                    current_options = []
+                    correct_indices = []
+                    state = "question"
+                else:
+                    # E o literă mică, deci e continuarea ultimei opțiuni! (Rezolvă problema ta)
+                    if current_options:
+                        current_options[-1] += " " + line
             else:
-                # Suntem încă în procesul de citire al enunțului întrebării curente
+                # Suntem deja în modul de citire a întrebării
                 current_q_text.append(line)
                 
-    # Adăugăm și ultima întrebare rămasă în memorie la finalul fișierului
+    # Adăugăm ultima întrebare din fișier
     if current_q_text and current_options:
         questions.append({
             "text": " ".join(current_q_text).strip(),
@@ -92,7 +107,6 @@ def parse_pdf_quiz(file_path):
         })
 
     return questions
-
 # --- 3. FUNCȚII AUXILIARE ---
 def restart_quiz():
     """Resetează progresul testului curent."""
