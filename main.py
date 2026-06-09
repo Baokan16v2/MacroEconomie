@@ -8,8 +8,9 @@ from pypdf import PdfReader
 # Aici adaugi numele capitolelor și fișierele PDF corespunzătoare
 PDF_FILES = {
     "Capitolul 5": "cap5.pdf",
-    "Capitolul 6": "cap6.pdf", # Înlocuiește cu numele real
-    # "Capitolul 7": "fisier_cap_7.pdf",
+    "Capitolul 6a": "cap6a.pdf",
+    "Capitolul 6b": "cap6b.pdf",# Înlocuiește cu numele real
+     "Capitolul 7": "cap7.pdf"
     # "Capitolul 8": "fisier_cap_8.pdf"
 }
 
